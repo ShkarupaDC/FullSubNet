@@ -19,10 +19,11 @@ from torch.utils.tensorboard import SummaryWriter
 import audio_zen.metrics as metrics
 from audio_zen.acoustics.feature import stft, istft
 from audio_zen.acoustics.utils import transform_pesq_range
-from audio_zen.utils import prepare_empty_dir, ExecutionTime
+from audio_zen.utils import prepare_empty_dir, ExecutionTime, filter_nones, catch_exception
 
 plt.switch_backend('agg')
 console = Console()
+
 
 
 class BaseTrainer:
@@ -107,10 +108,10 @@ class BaseTrainer:
                 toml.dump(config, handle)
 
             # Backup of project code
-            shutil.copytree(
-                src=self.source_code_dir.as_posix(),
-                dst=(self.save_dir / f"{time.strftime('%Y-%m-%d-%H-%M-%S')}").as_posix()
-            )
+            # shutil.copytree(
+            #     src=self.source_code_dir.as_posix(),
+            #     dst=(self.save_dir / f"{time.strftime('%Y-%m-%d-%H-%M-%S')}").as_posix()
+            # )
 
             self._print_networks([self.model])
 
@@ -274,17 +275,19 @@ class BaseTrainer:
         # Check if the metric is registered in "util.metrics" file.
         for i in metrics_list:
             assert i in metrics.REGISTERED_METRICS.keys(), f"{i} is not registered, please check 'util.metrics' file."
-
+                
         stoi_mean = 0.0
         wb_pesq_mean = 0.0
         for metric_name in metrics_list:
-            score_on_noisy = Parallel(n_jobs=num_workers)(
-                delayed(metrics.REGISTERED_METRICS[metric_name])(ref, est) for ref, est in zip(clean_list, noisy_list)
-            )
-            score_on_enhanced = Parallel(n_jobs=num_workers)(
-                delayed(metrics.REGISTERED_METRICS[metric_name])(ref, est) for ref, est in
+            metric_fn = catch_exception(metrics.REGISTERED_METRICS[metric_name])
+
+            score_on_noisy = filter_nones(Parallel(n_jobs=num_workers)(
+                delayed(metric_fn)(ref, est) for ref, est in zip(clean_list, noisy_list)
+            ))
+            score_on_enhanced = filter_nones(Parallel(n_jobs=num_workers)(
+                delayed(metric_fn)(ref, est) for ref, est in
                 zip(clean_list, enhanced_list)
-            )
+            ))
 
             # Add mean value of the metric to tensorboard
             mean_score_on_noisy = np.mean(score_on_noisy)

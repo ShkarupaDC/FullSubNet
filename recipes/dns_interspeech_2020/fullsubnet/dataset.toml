@@ -1,0 +1,18 @@
+[train_dataset]
+path = "dataset_custom.CustomDataset"
+[train_dataset.args]
+stage = "train"
+clean_dir = "/home/shkarupa/Documents/It-Jim/speech_enhancement/speech_and_noise_dataset/clean_train"
+noise_dir = "/home/shkarupa/Documents/It-Jim/speech_enhancement/speech_and_noise_dataset/noise_train"
+num_workers = 4
+preload_clean = false
+preload_noise = false
+fixed_noise_scale = false
+noise_scale = 2.3
+snr_range = [-5, 20]
+sr = 16000
+offset = 0.5 # in seconds
+subsample_len = 1.24
+target_dbfs = -25
+target_dbfs_float = 10
+# cleaned_dir = "/home/shkarupa/Documents/It-Jim/speech_enhancement/output/inference_custom_cum/cleaned"

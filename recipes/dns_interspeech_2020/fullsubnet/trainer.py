@@ -66,7 +66,7 @@ class Trainer(BaseTrainer):
         validation_score_list = {"With_reverb": 0.0, "No_reverb": 0.0}
 
         # speech_type in ("with_reverb", "no_reverb")
-        for i, (noisy, clean, name, speech_type) in tqdm(enumerate(self.valid_dataloader), desc="Validation"):
+        for i, (noisy, clean, name, speech_type) in tqdm(enumerate(self.valid_dataloader), total=len(self.valid_dataloader), desc="Validation"):
             assert len(name) == 1, "The batch size for the validation stage must be one."
             name = name[0]
             speech_type = speech_type[0]
@@ -111,6 +111,9 @@ class Trainer(BaseTrainer):
         self.writer.add_scalar(f"Loss/Validation_Total", loss_total / len(self.valid_dataloader), epoch)
 
         for speech_type in ("With_reverb", "No_reverb"):
+            if len(clean_y_list[speech_type]) == 0:
+                continue
+
             self.writer.add_scalar(f"Loss/{speech_type}", loss_list[speech_type] / len(self.valid_dataloader), epoch)
 
             validation_score_list[speech_type] = self.metrics_visualization(

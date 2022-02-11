@@ -14,7 +14,7 @@ from joblib import Parallel, delayed
 from tqdm import tqdm
 
 import audio_zen.metrics as metrics
-from audio_zen.utils import prepare_empty_dir
+from audio_zen.utils import prepare_empty_dir, catch_exception
 
 
 def load_wav_paths_from_scp(scp_path, to_abs=True):
@@ -126,7 +126,7 @@ def check_two_aligned_list(a, b):
 def compute_metric(reference_wav_paths, estimated_wav_paths, sr, metric_type="SI_SDR"):
     metrics_dict = {o[0]: o[1] for o in getmembers(metrics) if isfunction(o[1])}
     assert metric_type in metrics_dict, f"不支持的评价指标： {metric_type}"
-    metric_function = metrics_dict[metric_type]
+    metric_function = catch_exception(metrics_dict[metric_type])
 
     def calculate_metric(ref_wav_path, est_wav_path):
         ref_wav, _ = librosa.load(ref_wav_path, sr=sr)
@@ -140,14 +140,19 @@ def compute_metric(reference_wav_paths, estimated_wav_paths, sr, metric_type="SI
         est_wav_len = len(est_wav)
 
         if ref_wav_len != est_wav_len:
-            print(f"[Warning] ref {ref_wav_len} and est {est_wav_len} are not in the same length")
-            pass
-
+            raise ValueError(f"Ref {ref_wav_len} and est {est_wav_len} are not in the same length")
+        
         return basename, metric_function(ref_wav[:len(est_wav)], est_wav)
 
     metrics_result_store = Parallel(n_jobs=40)(
-        delayed(calculate_metric)(ref, est) for ref, est in tqdm(zip(reference_wav_paths, estimated_wav_paths))
+        delayed(calculate_metric)(ref, est) 
+        for ref, est in tqdm(
+            zip(reference_wav_paths, estimated_wav_paths),
+            total=len(reference_wav_paths),
+            desc=metric_type,
+        )
     )
+    metrics_result_store = [(name, value) for name, value in metrics_result_store if value is not None]
     return metrics_result_store
 
 

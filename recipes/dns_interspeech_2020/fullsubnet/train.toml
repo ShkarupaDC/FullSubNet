@@ -1,5 +1,5 @@
 [meta]
-save_dir = "~/Experiments/FullSubNet/"
+save_dir = "/home/shkarupa/Documents/It-Jim/speech_enhancement/FullSubNet/recipes/dns_interspeech_2020/fullsubnet/experiments"
 description = "This is a description of FullSubNet experiment."
 seed = 0  # set random seed for random, numpy, pytorch-gpu and pytorch-cpu
 use_amp = true
@@ -23,47 +23,81 @@ beta1 = 0.9
 beta2 = 0.999
 
 
+# [train_dataset]
+# path = "dataset_train.Dataset"
+# [train_dataset.args]
+# clean_dataset = "~/Datasets/DNS-Challenge-INTERSPEECH/datasets/clean_0.6.txt"
+# clean_dataset_limit = false
+# clean_dataset_offset = 0
+# noise_dataset = "~/Datasets/DNS-Challenge-INTERSPEECH/datasets/noise.txt"
+# noise_dataset_limit = false
+# noise_dataset_offset = 0
+# num_workers = 36
+# pre_load_clean_dataset = false
+# pre_load_noise = false
+# pre_load_rir = false
+# reverb_proportion = 0.75
+# rir_dataset = "~/Datasets/DNS-Challenge-INTERSPEECH/datasets/rir.txt"
+# rir_dataset_limit = false
+# rir_dataset_offset = 0
+# silence_length = 0.2
+# snr_range = [-5, 20]
+# sr = 16000
+# sub_sample_length = 3.072
+# target_dB_FS = -25
+# target_dB_FS_floating_value = 10
+
 [train_dataset]
-path = "dataset_train.Dataset"
+path = "dataset_custom.CustomDataset"
 [train_dataset.args]
-clean_dataset = "~/Datasets/DNS-Challenge-INTERSPEECH/datasets/clean_0.6.txt"
-clean_dataset_limit = false
-clean_dataset_offset = 0
-noise_dataset = "~/Datasets/DNS-Challenge-INTERSPEECH/datasets/noise.txt"
-noise_dataset_limit = false
-noise_dataset_offset = 0
-num_workers = 36
-pre_load_clean_dataset = false
-pre_load_noise = false
-pre_load_rir = false
-reverb_proportion = 0.75
-rir_dataset = "~/Datasets/DNS-Challenge-INTERSPEECH/datasets/rir.txt"
-rir_dataset_limit = false
-rir_dataset_offset = 0
-silence_length = 0.2
+stage = "train"
+clean_dir = "/home/shkarupa/Documents/It-Jim/speech_enhancement/speech_and_noise_dataset/clean_train"
+noise_dir = "/home/shkarupa/Documents/It-Jim/speech_enhancement/speech_and_noise_dataset/noise_train"
+num_workers = 4
+preload_clean = false
+preload_noise = false
+fixed_noise_scale = false
+noise_scale = 2.3
 snr_range = [-5, 20]
 sr = 16000
-sub_sample_length = 3.072
-target_dB_FS = -25
-target_dB_FS_floating_value = 10
-
+offset = 0.5
+subsample_len = 1.24
+target_dbfs = -25
+target_dbfs_float = 10
 
 [train_dataset.dataloader]
-batch_size = 48
-num_workers = 48
+batch_size = 8
+num_workers = 4
 drop_last = true
-pin_memory = false
+pin_memory = true
 
+
+# [validation_dataset]
+# path = "dataset_validation.Dataset"
+# [validation_dataset.args]
+# dataset_dir_list = [
+#     "~/Datasets/DNS-Challenge-INTERSPEECH/datasets/test_set/synthetic/with_reverb/",
+#     "~/Datasets/DNS-Challenge-INTERSPEECH/datasets/test_set/synthetic/no_reverb/"
+# ]
+# sr = 16000
 
 [validation_dataset]
-path = "dataset_validation.Dataset"
+path = "dataset_custom.CustomDataset"
 [validation_dataset.args]
-dataset_dir_list = [
-    "~/Datasets/DNS-Challenge-INTERSPEECH/datasets/test_set/synthetic/with_reverb/",
-    "~/Datasets/DNS-Challenge-INTERSPEECH/datasets/test_set/synthetic/no_reverb/"
-]
+stage = "validation"
+clean_dir = "/home/shkarupa/Documents/It-Jim/speech_enhancement/speech_and_noise_dataset/clean_val"
+noise_dir = "/home/shkarupa/Documents/It-Jim/speech_enhancement/speech_and_noise_dataset/noise_val"
+num_workers = 4
+preload_clean = false
+preload_noise = false
+fixed_noise_scale = false
+noise_scale = 2.3
+snr_range = [-5, 20]
 sr = 16000
-
+offset = 0.5
+subsample_len = 1.24
+target_dbfs = -25
+target_dbfs_float = 10
 
 [model]
 path = "fullsubnet.model.Model"
@@ -79,6 +113,7 @@ sb_output_activate_function = false
 fb_model_hidden_size = 512
 sb_model_hidden_size = 384
 weight_init = false
+# norm_type = "cumulative_laplace_norm"
 norm_type = "offline_laplace_norm"
 num_groups_in_drop_band = 2
 
@@ -91,8 +126,8 @@ epochs = 9999
 save_checkpoint_interval = 2
 [trainer.validation]
 save_max_metric_score = true
-validation_interval = 2
+validation_interval = 1
 [trainer.visualization]
 metrics = ["WB_PESQ", "NB_PESQ", "STOI", "SI_SDR"]
 n_samples = 10
-num_workers = 36
+num_workers = 4

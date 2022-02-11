@@ -8,26 +8,40 @@ hop_length = 256
 [inferencer]
 path = "inferencer.Inferencer"
 type = "full_band_crm_mask"
-
 [inferencer.args]
 n_neighbor = 15
 
 
-[dataset]
-path = "dataset_inference.Dataset"
+# [dataset]
+# path = "dataset_inference.Dataset"
+# [dataset.args]
+# dataset_dir_list = [
+#     "/home/shkarupa/Documents/It-Jim/speech_enhancement/output/noisy_test"
+# ]
+# sr = 16000
 
+[dataset]
+path = "dataset_custom.CustomDataset"
 [dataset.args]
-dataset_dir_list = [
-    #    "/apdcephfs/share_976139/xianghao/Datasets_share_976139/DNS-INTERSPEECH-2020/datasets/test_set/synthetic/with_reverb/noisy",
-    # "/apdcephfs/share_976139/xianghao/Datasets_share_976139/DNS-INTERSPEECH-2020/datasets/test_set/synthetic/no_reverb/noisy"
-"~/Datasets/DNS-Challenge-INTERSPEECH/datasets/test_set/synthetic/no_reverb/noisy"
-]
+stage = "inference"
+clean_dir = "/home/shkarupa/Documents/It-Jim/speech_enhancement/speech_and_noise_dataset/clean_test"
+noise_dir = "/home/shkarupa/Documents/It-Jim/speech_enhancement/speech_and_noise_dataset/noise_test"
+num_workers = 4
+preload_clean = false
+preload_noise = false
+fixed_noise_scale = false
+noise_scale = 2.3
+snr_range = [-5, 20]
 sr = 16000
+offset = 0.5
+subsample_len = 1.24
+target_dbfs = -25
+target_dbfs_float = 10
+cleaned_dir = "/home/shkarupa/Documents/It-Jim/speech_enhancement/output/inference_custom_cum/cleaned"
 
 
 [model]
 path = "model.Model"
-
 [model.args]
 num_freqs = 257
 look_ahead = 2

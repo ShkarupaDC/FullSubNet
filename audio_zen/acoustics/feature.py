@@ -440,102 +440,102 @@ class DirectionalFeatureComputer(nn.Module):
         return directional_feature
 
 
-class ChannelDirectionalFeatureComputer(nn.Module):
-    def __init__(
-            self,
-            n_fft,
-            win_length,
-            hop_length,
-            input_features,
-            mic_pairs,
-            lps_channel,
-            use_cos_IPD=True,
-            use_sin_IPD=False,
-            eps=1e-8
-    ):
-        super().__init__()
-        self.eps = eps
-        self.input_features = input_features
+# class ChannelDirectionalFeatureComputer(nn.Module):
+#     def __init__(
+#             self,
+#             n_fft,
+#             win_length,
+#             hop_length,
+#             input_features,
+#             mic_pairs,
+#             lps_channel,
+#             use_cos_IPD=True,
+#             use_sin_IPD=False,
+#             eps=1e-8
+#     ):
+#         super().__init__()
+#         self.eps = eps
+#         self.input_features = input_features
 
-        # STFT setting
-        self.stft = CustomSTFT(frame_len=win_length, frame_hop=hop_length, num_fft=n_fft)
-        self.num_freqs = n_fft // 2 + 1
+#         # STFT setting
+#         self.stft = CustomSTFT(frame_len=win_length, frame_hop=hop_length, num_fft=n_fft)
+#         self.num_freqs = n_fft // 2 + 1
 
-        # IPD setting
-        self.mic_pairs = np.array(mic_pairs)
-        self.num_mic_pairs = self.mic_pairs.shape[0]
-        self.ipd_left = [t[0] for t in mic_pairs]
-        self.ipd_right = [t[1] for t in mic_pairs]
-        self.use_cos_IPD = use_cos_IPD
-        self.use_sin_IPD = use_sin_IPD
+#         # IPD setting
+#         self.mic_pairs = np.array(mic_pairs)
+#         self.num_mic_pairs = self.mic_pairs.shape[0]
+#         self.ipd_left = [t[0] for t in mic_pairs]
+#         self.ipd_right = [t[1] for t in mic_pairs]
+#         self.use_cos_IPD = use_cos_IPD
+#         self.use_sin_IPD = use_sin_IPD
 
-        self.lps_channel = lps_channel
+#         self.lps_channel = lps_channel
 
-        self.directional_feature_dim = 0
-        if 'LPS' in self.input_features:
-            self.directional_feature_dim += 1
+#         self.directional_feature_dim = 0
+#         if 'LPS' in self.input_features:
+#             self.directional_feature_dim += 1
 
-        if 'IPD' in self.input_features:
-            self.directional_feature_dim += self.num_mic_pairs
-            if self.use_sin_IPD:
-                self.directional_feature_dim += self.num_mic_pairs
+#         if 'IPD' in self.input_features:
+#             self.directional_feature_dim += self.num_mic_pairs
+#             if self.use_sin_IPD:
+#                 self.directional_feature_dim += self.num_mic_pairs
 
-    def compute_ipd(self, phase):
-        """
-        Args
-            phase: phase of shape [B, M, F, K]
-        Returns
-            IPD  pf shape [B, I, F, K]
-        """
-        cos_ipd = torch.cos(phase[:, self.ipd_left] - phase[:, self.ipd_right])
-        sin_ipd = torch.sin(phase[:, self.ipd_left] - phase[:, self.ipd_right])
-        return cos_ipd, sin_ipd
+#     def compute_ipd(self, phase):
+#         """
+#         Args
+#             phase: phase of shape [B, M, F, K]
+#         Returns
+#             IPD  pf shape [B, I, F, K]
+#         """
+#         cos_ipd = torch.cos(phase[:, self.ipd_left] - phase[:, self.ipd_right])
+#         sin_ipd = torch.sin(phase[:, self.ipd_left] - phase[:, self.ipd_right])
+#         return cos_ipd, sin_ipd
 
-    def forward(self, y):
-        """
-        Args:
-            y: input mixture waveform with shape [B, M, T]
+#     def forward(self, y):
+#         """
+#         Args:
+#             y: input mixture waveform with shape [B, M, T]
 
-        Notes:
-            B - batch_size
-            M - num_channels
-            C - num_speakers
-            F - num_freqs
-            T - seq_len or num_samples
-            K - num_frames
-            I - IPD feature_size
+#         Notes:
+#             B - batch_size
+#             M - num_channels
+#             C - num_speakers
+#             F - num_freqs
+#             T - seq_len or num_samples
+#             K - num_frames
+#             I - IPD feature_size
 
-        Returns:
-            Spatial features and directional features of shape [B, ?, K]
-        """
-        batch_size, num_channels, num_samples = y.shape
-        y = y.view(-1, num_samples)  # [B * M, T]
-        magnitude, phase, real, imag = self.stft(y)
-        _, num_freqs, num_frames = phase.shape  # [B * M, F, K]
+#         Returns:
+#             Spatial features and directional features of shape [B, ?, K]
+#         """
+#         batch_size, num_channels, num_samples = y.shape
+#         y = y.view(-1, num_samples)  # [B * M, T]
+#         magnitude, phase, real, imag = self.stft(y)
+#         _, num_freqs, num_frames = phase.shape  # [B * M, F, K]
 
-        magnitude = magnitude.view(batch_size, num_channels, num_freqs, num_frames)
-        phase = phase.view(batch_size, num_channels, num_freqs, num_frames)
-        real = real.view(batch_size, num_channels, num_freqs, num_frames)
-        imag = imag.view(batch_size, num_channels, num_freqs, num_frames)
+#         magnitude = magnitude.view(batch_size, num_channels, num_freqs, num_frames)
+#         phase = phase.view(batch_size, num_channels, num_freqs, num_frames)
+#         real = real.view(batch_size, num_channels, num_freqs, num_frames)
+#         imag = imag.view(batch_size, num_channels, num_freqs, num_frames)
 
-        directional_feature = []
-        if "LPS" in self.input_features:
-            lps = torch.log(magnitude[:, self.lps_channel,
-                            ...] ** 2 + self.eps)  # [B, F, K], the 4-th channel, which is counted from right to left.
-            lps = lps[:, None, ...]
-            directional_feature.append(lps)
+#         directional_feature = []
+#         if "LPS" in self.input_features:
+#             lps = torch.log(magnitude[:, self.lps_channel,
+#                             ...] ** 2 + self.eps)  # [B, F, K], the 4-th channel, which is counted from right to left.
+#             lps = lps[:, None, ...]
+#             directional_feature.append(lps)
 
-        if "IPD" in self.input_features:
-            cos_ipd, sin_ipd = self.compute_ipd(phase)  # [B, I, F, K]
-            directional_feature.append(cos_ipd)
+#         if "IPD" in self.input_features:
+#             cos_ipd, sin_ipd = self.compute_ipd(phase)  # [B, I, F, K]
+#             directional_feature.append(cos_ipd)
 
-            if self.use_sin_IPD:
-                directional_feature.append(sin_ipd)
+#             if self.use_sin_IPD:
+#                 directional_feature.append(sin_ipd)
 
-        directional_feature = torch.cat(directional_feature, dim=1)
+#         directional_feature = torch.cat(directional_feature, dim=1)
 
-        # [B, C + I, F, T], [B, C, F, T], [B, C, F, T]
-        return directional_feature, magnitude, phase, real, imag
+#         # [B, C + I, F, T], [B, C, F, T], [B, C, F, T]
+#         return directional_feature, magnitude, phase, real, imag
 
 
 def hz_to_bark(hz):

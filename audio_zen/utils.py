@@ -2,10 +2,27 @@ import importlib
 import os
 import time
 from copy import deepcopy
-from functools import reduce
-
+from functools import reduce, wraps
+from typing import Callable, Optional, TypeVar
+import numpy as np
 import torch
 
+def catch_exception(metric_fn: Callable) -> Callable:
+    @wraps(metric_fn)
+    def wrapper(*args, **kwargs) -> Optional[float]:
+        try:
+            value = metric_fn(*args, **kwargs)
+            if np.isnan(value):
+                return None
+            return value
+        except:
+            return None
+    return wrapper
+
+T = TypeVar("T")
+
+def filter_nones(values: list[Optional[T]]) -> list[T]:
+    return list(filter(None, values))
 
 def load_checkpoint(checkpoint_path, device):
     _, ext = os.path.splitext(os.path.basename(checkpoint_path))

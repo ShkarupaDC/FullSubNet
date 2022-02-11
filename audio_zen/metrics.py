@@ -94,7 +94,8 @@ def WB_PESQ(ref, est, sr=16000):
 
 
 def NB_PESQ(ref, est, sr=16000):
-    return nb_pesq(ref, est, sr)
+    # return nb_pesq(ref, est, sr)
+    return pesq(sr, ref, est, "nb")
 
 
 # Only registered metric can be used.
