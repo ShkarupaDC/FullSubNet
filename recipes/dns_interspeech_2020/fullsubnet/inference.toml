@@ -35,9 +35,10 @@ noise_scale = 2.3
 snr_range = [-5, 20]
 sr = 16000
 offset = 0.5
-subsample_len = 1.24
+# duration = 1.24
 target_dbfs = -25
-target_dbfs_float = 10
+dbfs_range = 20
+fix_dbfs = true
 cleaned_dir = "/home/shkarupa/Documents/It-Jim/speech_enhancement/output/inference_custom/cleaned"
 
 

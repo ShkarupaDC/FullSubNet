@@ -7,6 +7,7 @@ from joblib import Parallel, delayed
 import os
 from pathlib import Path
 from tqdm import tqdm
+from enum import Enum
 from typing import Optional, TypeVar
 import sys
 
@@ -48,27 +49,34 @@ def save_audio(path: str, signal: Signal, sr: int) -> None:
     sf.write(str(path), signal, samplerate=int(sr), format="wav")
 
 
+class Stage(Enum):
+    TRAIN = "train"
+    INFERENCE = "inference"
+    VALIDATION = "validation"
+
+
 class CustomDataset(BaseDataset):
     def __init__(
         self,
         stage: str,
         clean_dir: str,
         noise_dir: str,
-        subsample_len: int,
-        fixed_noise_scale: bool,
-        noise_scale: float,
-        snr_range: tuple[float, float],
-        target_dbfs: float,
-        target_dbfs_float: float,
+        fixed_noise_scale: bool = False,
+        noise_scale: float = 2.3,
+        snr_range: tuple[float, float] = [-5, 20],
+        target_dbfs: int = -25,
+        dbfs_range: int = 20,
         sr: int = 16000,
         offset: float = 0,  # in seconds
+        duration: Optional[float] = None,
+        fix_dbfs: bool = True,
         preload_clean: bool = False,
         preload_noise: bool = False,
         num_workers: int = 0,
         cleaned_dir: Optional[str] = None,
     ):
         super().__init__()
-        self.stage = stage
+        self.stage = Stage(stage)
         self.sr = sr
         self.num_workers = num_workers
 
@@ -90,14 +98,17 @@ class CustomDataset(BaseDataset):
             self.snr_list = self._parse_snr_range(snr_range)
         self.noise_scale = noise_scale
 
-        self.num_samples = int(subsample_len * sr)
+        self.num_samples = None if duration is None else int(duration * sr)
+        if self.num_samples is None and self.stage is Stage.TRAIN:
+            raise ValueError("You have to pass 'duration' parameter")
+
         self.offset = offset
         self.target_dbfs = target_dbfs
-        self.target_dbfs_float = target_dbfs_float
+        self.dbfs_range = dbfs_range
+        self.fix_dbfs = fix_dbfs
 
         self.cleaned_dir = cleaned_dir
         if self.cleaned_dir is not None:
-
             self.cleaned_dir = Path(self.cleaned_dir)
             self.cleaned_dir.mkdir(parents=True, exist_ok=True)
 
@@ -143,16 +154,18 @@ class CustomDataset(BaseDataset):
             return noise[start:end]
         return noise
 
-    def mix_signals(
+    def _mix_signals(
         self, clean: np.ndarray, noise: np.ndarray, eps: float = 1e-6
     ) -> tuple[Signal, Signal]:
 
         clean = norm_amplitude(clean)[0]
-        clean = tailor_dB_FS(clean, self.target_dbfs)[0]
-        clean_rms = sqrt((clean**2).mean())
-
         noise = norm_amplitude(noise)[0]
-        noise = tailor_dB_FS(noise, self.target_dbfs)[0]
+
+        if self.fix_dbfs:
+            clean = tailor_dB_FS(clean, self.target_dbfs)[0]
+            noise = tailor_dB_FS(noise, self.target_dbfs)[0]
+
+        clean_rms = sqrt((clean**2).mean())
         noise_rms = sqrt((noise**2).mean())
 
         if not self.fixed_noise_scale:
@@ -164,17 +177,19 @@ class CustomDataset(BaseDataset):
         noisy = clean + noise
 
         # Randomly select RMS value of dBFS between -15 dBFS and -35 dBFS and normalize noisy speech with that value
-        noisy_target_dbfs = random.randint(
-            self.target_dbfs - self.target_dbfs_float,
-            self.target_dbfs + self.target_dbfs_float,
-        )
-        noisy, _, noisy_scalar = tailor_dB_FS(noisy, noisy_target_dbfs)
-        clean *= noisy_scalar
+        if self.fix_dbfs:
+            half_range = int(self.dbfs_range / 2)
+            noisy_dbfs = random.randint(
+                self.target_dbfs - half_range, self.target_dbfs + half_range
+            )
+            noisy, _, noisy_scalar = tailor_dB_FS(noisy, noisy_dbfs)
+            clean *= noisy_scalar
 
         if is_clipped(noisy):
             noisy_scalar = np.max(np.abs(noisy)) / (0.99 - eps)
             noisy = noisy / noisy_scalar
             clean = clean / noisy_scalar
+
         return noisy, clean
 
     def __getitem__(self, index: int) -> tuple[Signal, Signal]:
@@ -184,24 +199,25 @@ class CustomDataset(BaseDataset):
         else:
             clean = self.clean_data[index]
 
-        clean = subsample(clean, self.num_samples)
-        clean = pad_signal(clean, self.num_samples)
+        if self.num_samples is not None:
+            clean = subsample(clean, self.num_samples)
+            clean = pad_signal(clean, self.num_samples)
 
         if self.cleaned_dir is not None:
             save_audio(
                 self.cleaned_dir / Path(clean_path).name, clean, self.sr
             )
         noise = self._select_noise(len(clean))
-        noisy, clean = self.mix_signals(clean=clean, noise=noise)
+        noisy, clean = self._mix_signals(clean, noise)
 
         noisy = noisy.astype(np.float32)
         clean = clean.astype(np.float32)
 
-        assert len(noisy) == len(clean) and len(clean) == self.num_samples
+        assert len(noisy) == len(clean)
 
-        if self.stage == "train":
+        if self.stage == Stage.TRAIN:
             return noisy, clean
-        if self.stage == "inference":
+        if self.stage == Stage.INFERENCE:
             return noisy, Path(clean_path).stem
         return noisy, clean, f"val_{Path(clean_path).stem}", "No_reverb"
 

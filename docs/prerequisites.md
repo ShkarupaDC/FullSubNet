@@ -49,9 +49,3 @@ virtualenv --python path/to/python3.9 env_path
 source env_path/bin/activate
 pip install -r requirements.txt --find-links https://download.pytorch.org/whl/torch_stable.html
 ```
-
-If you face problems with pypesq installation, use the following command
-
-```sh
-pip install https://github.com/vBaiCai/python-pesq/archive/master.zip
-```
